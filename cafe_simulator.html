@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>カフェ社会的ジレンマ シミュレーター</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f5;color:#1a1a1a;padding:1.5rem}
+h1{font-size:20px;font-weight:600;margin-bottom:4px}
+.subtitle{font-size:13px;color:#666;margin-bottom:1.5rem}
+.layout{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.card{background:#fff;border:1px solid #e0e0e0;border-radius:12px;padding:1rem 1.25rem}
+.panel{flex:0 0 300px}
+.cafe-card{flex:1;min-width:220px;position:relative}
+.section-label{font-size:13px;font-weight:600;color:#555;margin-bottom:10px}
+.slider-wrap{margin-bottom:10px}
+.slider-header{display:flex;justify-content:space-between;font-size:12px;color:#666;margin-bottom:3px}
+.slider-val{font-weight:600;color:#1a1a1a}
+input[type=range]{width:100%;accent-color:#185fa5}
+.btn-row{display:flex;gap:8px;margin:14px 0 12px}
+.btn-primary{flex:1;padding:9px;font-size:14px;font-weight:600;border-radius:8px;border:none;background:#185fa5;color:#fff;cursor:pointer}
+.btn-primary:hover{background:#0c447c}
+.btn-secondary{padding:9px 14px;font-size:13px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer}
+.btn-secondary:hover{background:#f0f0f0}
+.sys-row{display:flex;gap:8px;margin-bottom:1.5rem}
+.sys-btn{flex:1;padding:8px;font-size:13px;font-weight:500;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;transition:all .15s}
+.sys-btn.active{background:#185fa5;color:#fff;border-color:#185fa5}
+.legend{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.leg-item{font-size:11px;color:#555;display:flex;align-items:center;gap:4px}
+.leg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.grid{display:grid;gap:3px}
+.seat{height:32px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;position:relative;overflow:hidden}
+.seat.empty{background:#f0f0f0;border:1px dashed #ccc}
+.seat-bar{position:absolute;bottom:0;left:0;height:3px;background:rgba(255,255,255,.45)}
+.metrics{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}
+.metric{background:#fff;border:1px solid #e0e0e0;border-radius:8px;padding:.75rem;text-align:center}
+.metric-label{font-size:11px;color:#666;margin-bottom:2px}
+.metric-val{font-size:20px;font-weight:600;color:#1a1a1a}
+.metric-val.good{color:#2d6a1f}
+.metric-val.warn{color:#a05a00}
+.metric-val.bad{color:#8b1a1a}
+.chart-card{margin-bottom:14px}
+.chart-legend{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:8px;font-size:11px;color:#555}
+.chart-legend span{display:flex;align-items:center;gap:4px}
+.chart-line{display:inline-block;width:20px;height:2px;vertical-align:middle}
+.log-box{font-size:12px;color:#555;font-family:monospace;line-height:1.8;max-height:100px;overflow-y:auto;background:#f8f8f8;border-radius:6px;padding:.5rem .75rem}
+.closed-overlay{display:none;position:absolute;inset:0;background:rgba(0,0,0,.6);border-radius:12px;align-items:center;justify-content:center;flex-direction:column;gap:8px;color:#fff;font-size:16px;font-weight:600}
+.step-lbl{font-size:11px;color:#888;margin-left:8px;font-weight:400}
+</style>
+</head>
+<body>
+
+<h1>カフェ社会的ジレンマ シミュレーター</h1>
+<p class="subtitle">エージェントベースモデル — 寄付×席予約権ハイブリッド型メタ報酬システムの効果検証<br>垣花昌旦（J5-250156）/ ゲーム理論とシミュレーションII</p>
+
+<div class="sys-row">
+  <button class="sys-btn active" id="btnOff" onclick="setSystem(false)">システムなし（OFF）</button>
+  <button class="sys-btn" id="btnOn" onclick="setSystem(true)">ハイブリッドシステムあり（ON）</button>
+</div>
+
+<div class="layout">
+  <div class="card panel">
+    <div class="section-label">パラメータ設定</div>
+
+    <div class="slider-wrap">
+      <div class="slider-header"><span>総席数 N</span><span class="slider-val" id="lSeats">20</span></div>
+      <input type="range" id="sSeats" min="10" max="40" value="20" step="1" oninput="document.getElementById('lSeats').textContent=this.value">
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span>C型（非協調）割合</span><span class="slider-val" id="lC">30%</span></div>
+      <input type="range" id="sC" min="0" max="60" value="30" step="5" oninput="document.getElementById('lC').textContent=this.value+'%'">
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span>D型（同調）割合</span><span class="slider-val" id="lD">20%</span></div>
+      <input type="range" id="sD" min="0" max="40" value="20" step="5" oninput="document.getElementById('lD').textContent=this.value+'%'">
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span>来客頻度（/ステップ）</span><span class="slider-val" id="lArr">3</span></div>
+      <input type="range" id="sArr" min="1" max="6" value="3" step="1" oninput="document.getElementById('lArr').textContent=this.value">
+    </div>
+    <div class="slider-wrap">
+      <div class="slider-header"><span>固定費（/ステップ）</span><span class="slider-val" id="lCost">400</span></div>
+      <input type="range" id="sCost" min="200" max="800" value="400" step="50" oninput="document.getElementById('lCost').textContent=this.value">
+    </div>
+
+    <div class="btn-row">
+      <button class="btn-primary" id="btnStart" onclick="toggleRun()">▶ 開始</button>
+      <button class="btn-secondary" onclick="doReset()">リセット</button>
+    </div>
+
+    <div class="slider-wrap">
+      <div class="slider-header"><span>速度</span><span class="slider-val" id="lSpd">普通</span></div>
+      <input type="range" id="sSpd" min="1" max="5" value="3" step="1" oninput="onSpdChange(this.value)">
+    </div>
+
+    <!-- エージェント凡例 -->
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid #eee">
+      <div class="section-label" style="margin-bottom:6px">エージェント定義</div>
+      <table style="width:100%;font-size:11px;border-collapse:collapse">
+        <tr style="background:#f5f5f5"><th style="padding:4px 6px;text-align:left;font-weight:600">型</th><th style="padding:4px 6px;text-align:left;font-weight:600">特徴</th><th style="padding:4px 6px;text-align:right;font-weight:600">単価</th></tr>
+        <tr><td style="padding:3px 6px"><span style="color:#378ADD;font-weight:700">A</span> 飲食客</td><td style="padding:3px 6px;color:#555">短時間・自発退店</td><td style="padding:3px 6px;text-align:right">300円</td></tr>
+        <tr style="background:#f9f9f9"><td style="padding:3px 6px"><span style="color:#3b6d11;font-weight:700">B</span> 協調型</td><td style="padding:3px 6px;color:#555">通知に応じて退店</td><td style="padding:3px 6px;text-align:right">250円</td></tr>
+        <tr><td style="padding:3px 6px"><span style="color:#a32d2d;font-weight:700">C</span> 非協調型</td><td style="padding:3px 6px;color:#555">通知を無視・居座り</td><td style="padding:3px 6px;text-align:right">120円</td></tr>
+        <tr style="background:#f9f9f9"><td style="padding:3px 6px"><span style="color:#ba7517;font-weight:700">D</span> 同調型</td><td style="padding:3px 6px;color:#555">混雑・他者を観察</td><td style="padding:3px 6px;text-align:right">220円</td></tr>
+        <tr><td style="padding:3px 6px"><span style="color:#534AB7;font-weight:700">E</span> 常連客</td><td style="padding:3px 6px;color:#555">自発的に協調退店</td><td style="padding:3px 6px;text-align:right">280円</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card cafe-card">
+    <div style="display:flex;align-items:center;margin-bottom:8px">
+      <div class="section-label" style="margin-bottom:0">カフェ平面図</div>
+      <span class="step-lbl" id="stepLbl">ステップ: 0</span>
+    </div>
+    <div class="legend">
+      <span class="leg-item"><span class="leg-dot" style="background:#e0e0e0;border:1px dashed #aaa"></span>空席</span>
+      <span class="leg-item"><span class="leg-dot" style="background:#378ADD"></span>A</span>
+      <span class="leg-item"><span class="leg-dot" style="background:#3b6d11"></span>B協調</span>
+      <span class="leg-item"><span class="leg-dot" style="background:#a32d2d"></span>C非協調</span>
+      <span class="leg-item"><span class="leg-dot" style="background:#ba7517"></span>D同調</span>
+      <span class="leg-item"><span class="leg-dot" style="background:#534AB7"></span>E常連</span>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="closed-overlay" id="closedMsg">
+      <div style="font-size:40px">🏪</div>
+      <div>店舗閉店</div>
+      <div style="font-size:13px;font-weight:400">連続赤字により閉店しました</div>
+    </div>
+  </div>
+</div>
+
+<div class="metrics">
+  <div class="metric"><div class="metric-label">混雑率 ρ(t)</div><div class="metric-val" id="mRho">0%</div></div>
+  <div class="metric"><div class="metric-label">今ステップ売上</div><div class="metric-val" id="mRev">0円</div></div>
+  <div class="metric"><div class="metric-label">累積利益</div><div class="metric-val" id="mProfit">0円</div></div>
+  <div class="metric"><div class="metric-label">評判 Rep(t)</div><div class="metric-val" id="mRep">100</div></div>
+  <div class="metric"><div class="metric-label">F型離脱（累積）</div><div class="metric-val" id="mFlose">0</div></div>
+</div>
+
+<div class="card chart-card">
+  <div class="section-label">時系列グラフ</div>
+  <div class="chart-legend">
+    <span><span class="chart-line" style="background:#378ADD"></span>混雑率(%)</span>
+    <span><span class="chart-line" style="background:#3b6d11"></span>協調退店×5</span>
+    <span><span class="chart-line" style="background:#a32d2d;border-top:2px dashed #a32d2d;height:0"></span>C型占有数</span>
+    <span><span class="chart-line" style="background:#ba7517"></span>累積利益/100</span>
+  </div>
+  <div style="position:relative;height:200px">
+    <canvas id="chart" role="img" aria-label="シミュレーション時系列グラフ">混雑率・協調退店数・C型占有数・累積利益の推移を表示します。</canvas>
+  </div>
+</div>
+
+<div class="card">
+  <div class="section-label">イベントログ</div>
+  <div class="log-box" id="log">シミュレーションを開始してください。</div>
+</div>
+
+<script>
+var systemOn=false,running=false,timer=null,st=null,ch=null,spdMs=400;
+var spdLabels={1:'最速',2:'速い',3:'普通',4:'ゆっくり',5:'遅い'};
+var spdMap={1:80,2:200,3:400,4:700,5:1000};
+var COLORS={A:'#378ADD',B:'#3b6d11',C:'#a32d2d',D:'#ba7517',E:'#534AB7'};
+var STAY={A:[2,4],B:[6,12],C:[12,24],D:[4,10],E:[8,14]};
+var ORDER={A:300,B:250,C:120,D:220,E:280};
+
+function gv(id){return parseInt(document.getElementById(id).value);}
+function el(id){return document.getElementById(id);}
+function ri(a,b){return Math.floor(Math.random()*(b-a+1))+a;}
+function rnd(){return Math.random();}
+
+function setSystem(val){
+  systemOn=val;
+  el('btnOff').className='sys-btn'+(val?'':' active');
+  el('btnOn').className='sys-btn'+(val?' active':'');
+}
+
+function onSpdChange(v){
+  el('lSpd').textContent=spdLabels[v];
+  spdMs=spdMap[v];
+  if(running){clearInterval(timer);timer=setInterval(tick,spdMs);}
+}
+
+function pickType(){
+  var pC=gv('sC')/100,pD=gv('sD')/100,pE=0.1,pB=Math.max(0,0.3-pD/2),r=rnd();
+  if(r<pC)return'C';
+  if(r<pC+pD)return'D';
+  if(r<pC+pD+pE)return'E';
+  if(r<pC+pD+pE+pB)return'B';
+  return'A';
+}
+
+function initState(){
+  var N=gv('sSeats');
+  st={step:0,N:N,seats:[],cumProfit:0,rep:100,fLose:0,redSteps:0,closed:false};
+  for(var i=0;i<N;i++)st.seats.push(null);
+  renderGrid();
+  el('stepLbl').textContent='ステップ: 0';
+  ['mRho','mRev','mProfit','mRep','mFlose'].forEach(function(id){
+    var e=el(id);e.className='metric-val';
+  });
+  el('mRho').textContent='0%';el('mRev').textContent='0円';
+  el('mProfit').textContent='0円';el('mRep').textContent='100';el('mFlose').textContent='0';
+  el('closedMsg').style.display='none';
+  el('log').textContent='シミュレーションを開始してください。';
+  if(ch){ch.destroy();ch=null;}
+  initChart();
+}
+
+function renderGrid(){
+  var N=st.N,cols=Math.ceil(Math.sqrt(N*1.6)),g=el('grid');
+  g.style.gridTemplateColumns='repeat('+cols+',1fr)';
+  g.innerHTML='';
+  st.seats.forEach(function(a){
+    var d=document.createElement('div');
+    d.className='seat';
+    if(!a){
+      d.classList.add('empty');
+    } else {
+      d.style.background=COLORS[a.type];
+      d.style.color='#fff';
+      d.textContent=a.type;
+      d.title=a.type+'型 残り'+a.ttl+'ステップ';
+      var bar=document.createElement('div');
+      bar.className='seat-bar';
+      bar.style.width=Math.round((1-a.ttl/a.maxTtl)*100)+'%';
+      d.appendChild(bar);
+    }
+    g.appendChild(d);
+  });
+}
+
+function tick(){
+  if(!st||st.closed)return;
+  st.step++;
+  var occ=st.seats.filter(function(s){return s!==null;});
+  var rho=occ.length/st.N,coopExits=0;
+  var ns=st.seats.map(function(a){
+    if(!a)return null;
+    a.ttl--;
+    if(a.ttl<=0){if(a.type==='B'||a.type==='E')coopExits++;return null;}
+    if(systemOn&&rho>=0.8){
+      if(a.type==='B'&&rnd()<0.65){coopExits++;return null;}
+      if(a.type==='E'&&rnd()<0.8){coopExits++;return null;}
+      if(a.type==='D'){var th=coopExits>0?0.55:0.25;if(rnd()<th){coopExits++;return null;}}
+      if(a.type==='C'&&rnd()<0.12){coopExits++;return null;}
+    }
+    return a;
+  });
+  var arr=gv('sArr'),cost=gv('sCost'),fLoseThis=0;
+  for(var i=0;i<arr;i++){
+    if(rnd()<(st.rep/150)){
+      var idx=ns.findIndex(function(s){return s===null;});
+      if(idx>=0){var t=pickType(),stay=ri.apply(null,STAY[t]);ns[idx]={type:t,ttl:stay,maxTtl:stay};}
+      else{fLoseThis++;st.fLose++;}
+    }
+  }
+  st.seats=ns;
+  var occ2=st.seats.filter(function(s){return s!==null;});
+  var rev=occ2.reduce(function(s,a){return s+ORDER[a.type];},0);
+  var profit=rev-cost;
+  st.cumProfit+=profit;
+  st.rep=Math.max(20,Math.min(200,st.rep+coopExits*2-fLoseThis*3+(profit>0?1:-2)));
+  if(profit<0)st.redSteps++;else st.redSteps=0;
+  if(st.redSteps>=8){
+    st.closed=true;
+    el('closedMsg').style.display='flex';
+    stopRun();
+  }
+  var rho2=Math.round(occ2.length/st.N*100);
+  var cType=occ2.filter(function(a){return a.type==='C';}).length;
+  updateChart(rho2,coopExits*5,cType,Math.round(st.cumProfit/100));
+  renderGrid();
+  el('stepLbl').textContent='ステップ: '+st.step;
+  var rhoEl=el('mRho');
+  rhoEl.textContent=rho2+'%';
+  rhoEl.className='metric-val '+(rho2>=80?'bad':rho2>=60?'warn':'good');
+  el('mRev').textContent=rev.toLocaleString()+'円';
+  var pEl=el('mProfit');
+  pEl.textContent=st.cumProfit.toLocaleString()+'円';
+  pEl.className='metric-val '+(st.cumProfit<0?'bad':st.cumProfit>0?'good':'');
+  var rEl=el('mRep');
+  rEl.textContent=Math.round(st.rep);
+  rEl.className='metric-val '+(st.rep<50?'bad':st.rep>120?'good':'');
+  el('mFlose').textContent=st.fLose;
+  if(st.step%5===0){
+    var lg=el('log');
+    if(lg.textContent.includes('開始'))lg.textContent='';
+    lg.textContent+='Step'+st.step+' ['+(systemOn?'ON':'OFF')+'] ρ='+rho2+'% C型='+cType+' 協調='+coopExits+' 利益='+profit+'円\n';
+    lg.scrollTop=lg.scrollHeight;
+  }
+}
+
+function toggleRun(){
+  if(running)stopRun();else startRun();
+}
+function startRun(){
+  if(running||!st||st.closed)return;
+  running=true;
+  el('btnStart').textContent='⏸ 停止';
+  el('btnStart').style.background='#6b3a00';
+  timer=setInterval(tick,spdMs);
+}
+function stopRun(){
+  running=false;clearInterval(timer);
+  el('btnStart').textContent='▶ 開始';
+  el('btnStart').style.background='#185fa5';
+}
+function doReset(){stopRun();initState();}
+
+function initChart(){
+  var ctx=el('chart').getContext('2d');
+  ch=new Chart(ctx,{
+    type:'line',
+    data:{
+      labels:[],
+      datasets:[
+        {label:'混雑率',data:[],borderColor:'#378ADD',borderWidth:2,pointRadius:0,tension:.3,fill:false},
+        {label:'協調',data:[],borderColor:'#3b6d11',borderWidth:2,pointRadius:0,tension:.3,fill:false},
+        {label:'C型',data:[],borderColor:'#a32d2d',borderWidth:2,pointRadius:0,tension:.3,borderDash:[5,4],fill:false},
+        {label:'利益',data:[],borderColor:'#ba7517',borderWidth:2,pointRadius:0,tension:.3,fill:false}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,animation:{duration:0},
+      plugins:{legend:{display:false}},
+      scales:{
+        x:{ticks:{maxTicksLimit:8,font:{size:10}},grid:{display:false}},
+        y:{ticks:{font:{size:10}},grid:{color:'rgba(0,0,0,.06)'}}
+      }
+    }
+  });
+}
+
+function updateChart(rho,coop,cType,profit){
+  if(!ch)return;
+  if(ch.data.labels.length>60){
+    ch.data.labels.shift();
+    ch.data.datasets.forEach(function(d){d.data.shift();});
+  }
+  ch.data.labels.push(st.step);
+  ch.data.datasets[0].data.push(rho);
+  ch.data.datasets[1].data.push(coop);
+  ch.data.datasets[2].data.push(cType);
+  ch.data.datasets[3].data.push(profit);
+  ch.update('none');
+}
+
+initState();
+</script>
+</body>
+</html>
